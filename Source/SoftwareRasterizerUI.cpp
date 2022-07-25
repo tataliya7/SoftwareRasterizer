@@ -130,16 +130,13 @@ namespace SR
 			ImGuizmo::SetOrthographic(false);
 			ImGuizmo::SetDrawlist();
 			ImGuizmo::SetRect(viewport->WorkPos.x, viewport->WorkPos.y, viewport->WorkSize.x, viewport->WorkSize.y);
-
 			
 			if (showTransformManipulater)
 			{
 				Transform& transform = currentObject == 0 ? modelTransform : floorTransform;
 				Matrix4x4 world = transform.world;
-				Matrix4x4 proj = perFrameData.projectionMatrix;
-				proj[1][1] *= -1;
 				ImGuizmo::Manipulate(glm::value_ptr(perFrameData.viewMatrix),
-					glm::value_ptr(proj),
+					glm::value_ptr(perFrameData.projectionMatrix),
 					(ImGuizmo::OPERATION)gizmoOperationType,
 					ImGuizmo::LOCAL,
 					glm::value_ptr(world),
@@ -155,10 +152,8 @@ namespace SR
 
 			if (showGrid)
 			{
-				Matrix4x4 proj = perFrameData.projectionMatrix;
-				proj[1][1] *= -1;
 				ImGuizmo::DrawGrid(glm::value_ptr(perFrameData.viewMatrix),
-					glm::value_ptr(proj),
+					glm::value_ptr(perFrameData.projectionMatrix),
 					glm::value_ptr(Matrix4x4(1.0f)),
 					10.0f);
 			}
@@ -198,7 +193,8 @@ namespace SR
 						"Wolrd Normal",
 						"Base Color",
 						"Metallic",
-						"Roughness"
+						"Roughness",
+						"Depth"
 					};
 					int idx = 0;
 					if (ImGui::BeginCombo("Debug View", debugViewNames[perFrameData.debugView]))
@@ -328,7 +324,7 @@ namespace SR
 						ImGui::TextUnformatted("Position");
 						ImGui::NextColumn();
 						ImGui::PushItemWidth(-1);
-						ImGui::DragFloat3("##Position", &modelTransform.position.x, 0.1f);
+						ImGui::DragFloat3("##Position", &floorTransform.position.x, 0.1f);
 						ImGui::PopItemWidth();
 						ImGui::NextColumn();
 
@@ -336,7 +332,7 @@ namespace SR
 						ImGui::TextUnformatted("Rotation");
 						ImGui::NextColumn();
 						ImGui::PushItemWidth(-1);
-						ImGui::DragFloat3("##Rotation", &modelTransform.rotation.x, 0.1f);
+						ImGui::DragFloat3("##Rotation", &floorTransform.rotation.x, 0.1f);
 						ImGui::PopItemWidth();
 						ImGui::NextColumn();
 

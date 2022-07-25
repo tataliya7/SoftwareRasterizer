@@ -94,6 +94,11 @@ namespace SR
         RenderTarget<glm::u8vec4>* colorBuffer;
     };
 
+    //struct RasterizerStatatics
+    //{
+    //    uint32 numVertices;
+    //};
+
     struct Viewport
     {
         float x;
@@ -102,18 +107,14 @@ namespace SR
         float height;
     };
 
-    struct RasterizerStatatics
-    {
-
-    };
-
     class Rasterizer
     {
     public:
         std::vector<ShaderPayload> payloads;
         void SetViewport(float x, float y, float width, float height); 
-        void DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives, float zNear, float zFar);
+        void DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives);
     private:
         Viewport viewport;
+        Matrix4x4 viewportTransform; // From NDC space to screen space
     };
 }

@@ -131,11 +131,35 @@ namespace SR
         return Vector4(linear, sRGB.w);
     }
 
+    float PCF(Texture* shadowMap, Vector3 shadowMapCoord)
+    {
+        if ((shadowMapCoord.y < 0.0f) || (shadowMapCoord.y > 1.0f)) return 1.0f;
+        if ((shadowMapCoord.x < 0.0f) || (shadowMapCoord.x > 1.0f)) return 1.0f;
+        if (shadowMapCoord.z < 0.0f) return 1.0f;
+        if (shadowMapCoord.z > 1.0f) return 1.0f;
+        shadowMapCoord.z -= 0.01f;
+
+        uint32 shadowMapSize = shadowMap->GetWidth();
+        float dx = 1.0 / float(shadowMapSize);
+        float dy = 1.0 / float(shadowMapSize);
+
+        float result = 0.0;
+        for (int i = -2; i <= 2; i++)
+        {
+            for (int j = -2; j <= 2; j++)
+            {
+                result += shadowMap->Sample(SAMPLER_LINEAR_CLAMP, shadowMapCoord + Vector3(dx * i, dy * j, 0)).r;
+            }
+        }
+        result /= (5 * 5);
+        return result;
+    }
+
     void PBRMainVS(uint32 SV_VertexID, ShaderPayload& output, const void* pushConstants)
     {
         const PBRShaderPushConstants& pc = *(PBRShaderPushConstants*)pushConstants;
 
-        Matrix4x4 worldMatrix = pc.worldMatrix;
+        Matrix4x4& worldMatrix = *pc.worldMatrix;
         Vector4 localPosition = Vector4(((Vector3*)pc.positions)[SV_VertexID], 1.0f);
         Vector4 worldPosition = worldMatrix * localPosition;
         Vector3 worldNormal = ((Vector3*)pc.normals)[SV_VertexID];
@@ -144,11 +168,13 @@ namespace SR
         worldTangent = Math::Normalize(Matrix3x3(worldMatrix) * worldTangent);
         Vector2 texCoord = ((Vector2*)pc.texCoords)[SV_VertexID];
 
-        output.clipPosition = ((PerFrameData*)pc.perFrameData)->viewProjectionMatrix * worldPosition;
+        output.SV_Target = ((PerFrameData*)pc.perFrameData)->viewProjectionMatrix * worldPosition;
+
         output.worldPosition = Vector3(worldPosition);
         output.worldNormal = worldNormal;
         output.worldTangent = worldTangent;
         output.texCoord = texCoord;
+        output.clipPosition = output.SV_Target;
     }
 
     Vector4 PBRMainPS(const ShaderPayload& input, const void* pushConstants)
@@ -159,7 +185,7 @@ namespace SR
 
         Vector3 geometricWorldNormal = glm::normalize(input.worldNormal);
         Vector3 worldTangent = glm::normalize(input.worldTangent);
-        Vector3 position = glm::normalize(input.worldPosition);
+        Vector3 position = input.worldPosition;
         Vector2 texCoord0 = input.texCoord;
         float gamma = perFrameData.gamma;
         DebugView debugView = perFrameData.debugView;
@@ -190,6 +216,14 @@ namespace SR
         Vector3 finalColor = Vector3(0.0f);
 
         float visibility = 1.0f;
+        if (pc.shadowMap)
+        {
+            Vector4 shadowMapCoord = *pc.lightMatrix * Vector4(position, 1.0f);
+            shadowMapCoord /= shadowMapCoord.w;
+            shadowMapCoord.x = (1.0f + shadowMapCoord.x) * 0.5f;
+            shadowMapCoord.y = (1.0f - shadowMapCoord.y) * 0.5f;
+            visibility = PCF(pc.shadowMap, Vector3(shadowMapCoord));
+        }
 
         // Direct Lighting
         float intensity = perFrameData.mainLightIntensity;
@@ -238,7 +272,10 @@ namespace SR
         {
             color = Vector4(1.0f, 1.0f, 1.0f, roughness);
         }
-
+        else if (debugView == DEBUG_VIEW_DEPTH)
+        {
+            color = Vector4(1.0f, 1.0f, 1.0f, linearDepth01);
+        }
         return color;
     }
 }

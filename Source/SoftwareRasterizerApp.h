@@ -5,7 +5,9 @@
 #include "CameraController.h"
 #include "Rasterizer.h"
 #include "Scene.h"
+#include "Shaders/ShaderCommon.h"
 #include "Shaders/PBRShader.h"
+#include "Shaders/ShadowMapShader.h"
 
 #define APPLICATION_NAME "Software Rasterizer"
 
@@ -38,6 +40,8 @@ namespace SR
         void Update(float deltaTime);
         void Render();
 
+        void ShadowPass();
+
         bool IsExitRequest() const
         {
             return isExitRequested;
@@ -64,14 +68,19 @@ namespace SR
 
         GraphicsPipelineState pipelineState0;
         GraphicsPipelineState pipelineState1;
+        GraphicsPipelineState pipelineState2;
         RenderTarget<glm::u8vec4>* sceneColor;
         RenderTarget<float>* depthBuffer;
+        
+        uint32 shadowMapSize;
         RenderTarget<float>* shadowMap;
 
         Rasterizer* rasterizer;
         PerFrameData perFrameData;
 
         DebugView debugView;
+
+        bool renderShadow;
     };
 }
 

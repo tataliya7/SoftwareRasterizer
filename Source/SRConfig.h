@@ -8,5 +8,6 @@ enum DebugView
     DEBUG_VIEW_NORMAL     = 2,
     DEBUG_VIEW_BASE_COLOR = 3,
     DEBUG_VIEW_METALLIC   = 4,
-    DEBUG_VIEW_ROUGHNESS  = 5
+    DEBUG_VIEW_ROUGHNESS  = 5,
+    DEBUG_VIEW_DEPTH      = 6,
 };

@@ -9,12 +9,14 @@ namespace SR
 
     struct ShaderPayload
     {
-        Vector4 clipPosition;
+        Vector4 SV_Target;
+        Vector3 screenPosition;
+
         Vector3 worldPosition;
         Vector3 worldNormal;
         Vector3 worldTangent;
-        Vector2 texCoord;
-        Vector4 screenPosition;
+        Vector2 texCoord;   
+        Vector4 clipPosition;
         float invW;
     };
 

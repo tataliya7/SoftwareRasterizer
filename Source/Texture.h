@@ -47,6 +47,14 @@ namespace SR
             height = h;
             buffer.resize(w * h);
         }
+        uint32 GetWidth() const
+        {
+            return width;
+        }
+        uint32 GetHeight() const
+        {
+            return height;
+        }
         Vector4 Sample(const SamplerState& smapler, const Vector2& uv)  const;
         Vector4 LoadTexelAddressed(int x, int y, TextureAddressMode address) const;
         Vector4 LoadTexel(uint32 x, uint32 y) const

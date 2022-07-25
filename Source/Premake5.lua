@@ -19,9 +19,13 @@ project "SoftwareRasterizer"
         "ImGuizmo",
         "OpenGL32.lib",
         thirdpartypath("assimp/lib/assimp-vc143-mt.lib"),
-        thirdpartypath("glfw/lib/glfw.lib"),
+        thirdpartypath("glfw/lib/glfw3.lib"),
     }
     
+    postbuildcommands {
+        "{COPY} %{wks.location}/../ThirdParty/assimp/bin/assimp-vc143-mt.dll %{cfg.targetdir}"
+    }
+
     includedirs {
         sourcepath(""),
         thirdpartypath("mpmc/include"), 

@@ -29,7 +29,15 @@ namespace SR
     {
         Vector3 color;
         float intensity;
+        Vector3 position;
         Vector3 direction;
+        Matrix4x4 vp;
+        void Update()
+        {
+            Matrix4x4 view = glm::lookAt(position, Vector3f(0.0f), Vector3(0.0f, 1.0f, 0.0f));
+            Matrix4x4 projection = glm::perspective(Math::DegreesToRadians(45.0f), 1.0f, 0.1f, 256.0f);
+            vp = projection * view;
+        }
     };
 
     struct PBRMaterial
