@@ -182,6 +182,7 @@ namespace SR
 				else
 				{
 					material.baseColorMap = nullptr;
+					material.baseColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 				}
 
 				result = aiMaterial->GetTexture(aiTextureType_NORMALS, 0, &aiTexPath);
@@ -206,7 +207,8 @@ namespace SR
 				}
 				else
 				{
-					material.metallicRoughnessMap = nullptr;
+					material.metallicRoughnessMap = nullptr; 
+					material.metallic = 0.0f; material.roughness = 1.0f;
 				}
 			}
 		}

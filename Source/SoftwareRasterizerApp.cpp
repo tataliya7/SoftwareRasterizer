@@ -50,14 +50,14 @@ namespace SR
         char dir[MAX_PATH];
         _getcwd(dir, MAX_PATH);
         currentDir = dir;
-        ImportGLTF2((currentDir + "/../../Assets/DamagedHelmet/glTF/DamagedHelmet.gltf").c_str(), &model);
+        ImportGLTF2((currentDir + "/../../Assets/Cube/Cube.gltf").c_str(), &model);
         ImportGLTF2((currentDir + "/../../Assets/floor/floor.gltf").c_str(), &floor);
         
         camera.position = Vector3(0.0f, 18.0f, 31.0f);
         camera.euler = Vector3(-36.0f, 0.0f, 0.5f);
         camera.fieldOfView = 60.0f;
-        camera.zNear = 0.5f;
-        camera.zFar = 10000.0f;
+        camera.zNear = 0.1f;
+        camera.zFar = 100.0f;
 
         light.color = Vector3(1.0f, 1.0f, 1.0f);
         //light.position = Vector3(8.3f, 8.9f, 0.0f); 
@@ -204,6 +204,7 @@ namespace SR
         pushConstantBlock0.material = &model.material;
         pushConstantBlock0.lightMatrix = &light.vp;
         pushConstantBlock0.shadowMap = nullptr;
+        pushConstantBlock0.renderShadow = false;
 
         PBRShaderPushConstants pushConstantBlock1;
         pushConstantBlock1.positions = floor.positions.data();
@@ -215,6 +216,7 @@ namespace SR
         pushConstantBlock1.material = &floor.material;
         pushConstantBlock1.lightMatrix = &light.vp;
         pushConstantBlock1.shadowMap = nullptr;
+        pushConstantBlock0.renderShadow = true;
 
         if (renderShadow)
         {

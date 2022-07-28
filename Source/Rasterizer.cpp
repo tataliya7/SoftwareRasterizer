@@ -163,9 +163,9 @@ namespace SR
 
         if (data->pipelineState->shadowMap)
         {
-            //float d = BarycentricLerp(data->payload[0]->clipPosition.z, data->payload[1]->clipPosition.z, data->payload[2]->clipPosition.z, barycentric, 1.0f);
-            float d = depth;
-            //d = data->zNear * data->zFar / (data->zFar + d * (data->zNear - data->zFar));
+            float d = BarycentricLerp(data->payload[0]->clipPosition.z, data->payload[1]->clipPosition.z, data->payload[2]->clipPosition.z, barycentric, 1.0f);
+            //float d = depth;
+            d = data->zNear * data->zFar / (data->zFar + d * (data->zNear - data->zFar));
             data->pipelineState->shadowMap->Store(data->x, data->y, d);
             return;
         }
@@ -246,7 +246,7 @@ namespace SR
         {
             for (int y = miny; y <= maxy; y++)
             {
-                BarycentricCoordinates barycentric = CalculateBarycentric2D(x, y, screenPos[0], screenPos[1], screenPos[2]);
+                BarycentricCoordinates barycentric = CalculateBarycentric2D((float)x, (float)y, screenPos[0], screenPos[1], screenPos[2]);
                 if (!barycentric.IsInsideTriangle())
                 {
                     continue;
@@ -267,8 +267,13 @@ namespace SR
                 LauchPixelShaderExecution(&pixelShaderJobData.back());
             }
         }
-        //JobSystemAtomicCounterHandle counter = JobSystem::RunJobs(jobDecls.data(), (uint32)jobDecls.size());
-        //JobSystem::WaitForCounterAndFree(counter, 0);
+
+        // TODO: use OpenMP instead
+        /*if (!jobDecls.empty())
+        {
+            JobSystemAtomicCounterHandle counter = JobSystem::RunJobs(jobDecls.data(), (uint32)jobDecls.size());
+            JobSystem::WaitForCounterAndFreeWithoutFiber(counter);
+        }*/
     }
 
     void Rasterizer::DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives, float zNear, float zFar)
@@ -317,7 +322,7 @@ namespace SR
                 JOB_SYSTEM_JOB_ENTRY_POINT(ExecuteTriangleRasterization),
                 &triangleRasterizeJobData[primitiveID]
             };
-            //ExecuteTriangleRasterization(&triangleRasterizeJobData[primitiveID]);
+            ExecuteTriangleRasterization(&triangleRasterizeJobData[primitiveID]);
         }
         JobSystemAtomicCounterHandle triangleRasterizeJobCounter = JobSystem::RunJobs(jobDecls.data(), numPrimitives);
         JobSystem::WaitForCounterAndFreeWithoutFiber(triangleRasterizeJobCounter);

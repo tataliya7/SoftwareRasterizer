@@ -149,7 +149,6 @@ namespace SR
             for (int j = -2; j <= 2; j++)
             {
                 float depth = shadowMap->Sample(SAMPLER_LINEAR_WARP, shadowMapCoord + Vector3(dx * i, dy * j, 0));
-                //printf("%f %f %f\n", shadowMapCoord.x, shadowMapCoord.y, depth);
                 if (shadowMapCoord.z < depth)
                 {
                     result++;
@@ -207,7 +206,7 @@ namespace SR
             N = glm::normalize(TBN * tangentNormal);
         }
 
-        Vector4 metallicRoughness = material.metallicRoughnessMap ? material.metallicRoughnessMap->Sample(SAMPLER_LINEAR_WARP, texCoord0) : Vector4(0.0f);
+        Vector4 metallicRoughness = material.metallicRoughnessMap ? material.metallicRoughnessMap->Sample(SAMPLER_LINEAR_WARP, texCoord0) : Vector4(1.0f);
         float metallic = material.metallic * metallicRoughness.b;
         float roughness = material.roughness * metallicRoughness.g;
 
@@ -221,7 +220,7 @@ namespace SR
         Vector3 finalColor = Vector3(0.0f);
 
         float visibility = 1.0f;
-        if (pc.shadowMap)
+        if (pc.shadowMap && !pc.renderShadow)
         {
             Vector4 shadowMapCoord = *pc.lightMatrix * Vector4(position, 1.0f);
             shadowMapCoord /= shadowMapCoord.w;

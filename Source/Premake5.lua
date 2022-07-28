@@ -23,7 +23,8 @@ project "SoftwareRasterizer"
     }
     
     postbuildcommands {
-        "{COPY} %{wks.location}/../ThirdParty/assimp/bin/assimp-vc143-mt.dll %{cfg.targetdir}"
+        "{COPY} %{wks.location}/../ThirdParty/assimp/bin/assimp-vc143-mt.dll %{cfg.targetdir}",
+        "{COPY} %{wks.location}/../Assets/imgui.ini %{wks.location}/SoftwareRasterizer",
     }
 
     includedirs {

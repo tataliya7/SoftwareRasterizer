@@ -61,7 +61,7 @@ namespace SR
         Camera camera;
         SimpleFirstPersonCameraController cameraController;
         
-        int modelID;
+        int modelID = 0;
         Mesh model;
         Transform modelTransform;
         Mesh floor;
@@ -81,7 +81,7 @@ namespace SR
 
         DebugView debugView;
 
-        bool renderShadow;
+        bool renderShadow = false;
     };
 }
 

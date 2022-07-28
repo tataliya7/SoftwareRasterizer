@@ -18,6 +18,7 @@ namespace SR
         Matrix4x4* worldMatrix;
         Matrix4x4* lightMatrix;
         uint32 shadowType;
+        bool renderShadow;
         RenderTarget<float>* shadowMap;
     };
 

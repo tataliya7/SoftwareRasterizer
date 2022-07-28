@@ -300,8 +300,9 @@ namespace SR
 				{
 					ImGui::Separator();
 					static const char* modelNames[] = {
+						"Cube",
 						"Damaged Helmet",
-						"Cube"
+						"Suzanne",
 					};
 					int idx = 0;
 					if (ImGui::BeginCombo("Model Name", modelNames[modelID]))
@@ -314,11 +315,15 @@ namespace SR
 								modelID = (DebugView)idx;
 								if (modelID == 0)
 								{
-									ImportGLTF2((currentDir + "/../../Assets/DamagedHelmet/glTF/DamagedHelmet.gltf").c_str(), &model);
+									ImportGLTF2((currentDir + "/../../Assets/Cube/Cube.gltf").c_str(), &model);
 								}
 								else if (modelID == 1)
 								{
-									ImportGLTF2((currentDir + "/../../Assets/Cube/Cube.gltf").c_str(), &model);
+									ImportGLTF2((currentDir + "/../../Assets/DamagedHelmet/glTF/DamagedHelmet.gltf").c_str(), &model);
+								}
+								else if (modelID == 2)
+								{
+									ImportGLTF2((currentDir + "/../../Assets/Suzanne/Suzanne.gltf").c_str(), &model);
 								}
 							}
 						}
