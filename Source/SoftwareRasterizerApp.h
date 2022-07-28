@@ -54,12 +54,14 @@ namespace SR
         SRWindow* window;
 
         bool isExitRequested;
+        std::string currentDir;
 
         uint64 frameCounter;
 
         Camera camera;
         SimpleFirstPersonCameraController cameraController;
         
+        int modelID;
         Mesh model;
         Transform modelTransform;
         Mesh floor;
@@ -71,9 +73,8 @@ namespace SR
         GraphicsPipelineState pipelineState2;
         RenderTarget<glm::u8vec4>* sceneColor;
         RenderTarget<float>* depthBuffer;
-        
-        uint32 shadowMapSize;
         RenderTarget<float>* shadowMap;
+        uint32 shadowMapSize;
 
         Rasterizer* rasterizer;
         PerFrameData perFrameData;

@@ -131,24 +131,29 @@ namespace SR
         return Vector4(linear, sRGB.w);
     }
 
-    float PCF(Texture* shadowMap, Vector3 shadowMapCoord)
+    float PCF(RenderTarget<float>* shadowMap, Vector3 shadowMapCoord)
     {
         if ((shadowMapCoord.y < 0.0f) || (shadowMapCoord.y > 1.0f)) return 1.0f;
         if ((shadowMapCoord.x < 0.0f) || (shadowMapCoord.x > 1.0f)) return 1.0f;
         if (shadowMapCoord.z < 0.0f) return 1.0f;
         if (shadowMapCoord.z > 1.0f) return 1.0f;
-        shadowMapCoord.z -= 0.01f;
+        shadowMapCoord.z -= 0.1f;
 
         uint32 shadowMapSize = shadowMap->GetWidth();
-        float dx = 1.0 / float(shadowMapSize);
-        float dy = 1.0 / float(shadowMapSize);
+        float dx = 1.0f / float(shadowMapSize);
+        float dy = 1.0f / float(shadowMapSize);
 
-        float result = 0.0;
+        float result = 0.0f;
         for (int i = -2; i <= 2; i++)
         {
             for (int j = -2; j <= 2; j++)
             {
-                result += shadowMap->Sample(SAMPLER_LINEAR_CLAMP, shadowMapCoord + Vector3(dx * i, dy * j, 0)).r;
+                float depth = shadowMap->Sample(SAMPLER_LINEAR_WARP, shadowMapCoord + Vector3(dx * i, dy * j, 0));
+                //printf("%f %f %f\n", shadowMapCoord.x, shadowMapCoord.y, depth);
+                if (shadowMapCoord.z < depth)
+                {
+                    result++;
+                }
             }
         }
         result /= (5 * 5);
@@ -168,13 +173,13 @@ namespace SR
         worldTangent = Math::Normalize(Matrix3x3(worldMatrix) * worldTangent);
         Vector2 texCoord = ((Vector2*)pc.texCoords)[SV_VertexID];
 
-        output.SV_Target = ((PerFrameData*)pc.perFrameData)->viewProjectionMatrix * worldPosition;
-
+        output.clipPosition = ((PerFrameData*)pc.perFrameData)->viewProjectionMatrix * worldPosition;
+        //output.clipPosition = *pc.lightMatrix * worldPosition;
+        output.clipPosition.y = -output.clipPosition.y;
         output.worldPosition = Vector3(worldPosition);
         output.worldNormal = worldNormal;
         output.worldTangent = worldTangent;
         output.texCoord = texCoord;
-        output.clipPosition = output.SV_Target;
     }
 
     Vector4 PBRMainPS(const ShaderPayload& input, const void* pushConstants)
@@ -206,7 +211,7 @@ namespace SR
         float metallic = material.metallic * metallicRoughness.b;
         float roughness = material.roughness * metallicRoughness.g;
 
-        float linearDepth01 = input.clipPosition.z / input.clipPosition.w;
+        float depth01 = input.clipPosition.z / input.clipPosition.w;
 
         Vector3 V = glm::normalize(perFrameData.cameraPosition - input.worldPosition);
         Vector3 R = glm::reflect(-V, N);
@@ -221,7 +226,7 @@ namespace SR
             Vector4 shadowMapCoord = *pc.lightMatrix * Vector4(position, 1.0f);
             shadowMapCoord /= shadowMapCoord.w;
             shadowMapCoord.x = (1.0f + shadowMapCoord.x) * 0.5f;
-            shadowMapCoord.y = (1.0f - shadowMapCoord.y) * 0.5f;
+            shadowMapCoord.y = (1.0f + shadowMapCoord.y) * 0.5f;
             visibility = PCF(pc.shadowMap, Vector3(shadowMapCoord));
         }
 
@@ -266,15 +271,15 @@ namespace SR
         }
         else if (debugView == DEBUG_VIEW_METALLIC)
         {
-            color = Vector4(1.0f, 1.0f, 1.0f, metallic);
+            color = Vector4(metallic, metallic, metallic, 1.0f);
         }
         else if (debugView == DEBUG_VIEW_ROUGHNESS)
         {
-            color = Vector4(1.0f, 1.0f, 1.0f, roughness);
+            color = Vector4(roughness, roughness, roughness, 1.0f);
         }
         else if (debugView == DEBUG_VIEW_DEPTH)
         {
-            color = Vector4(1.0f, 1.0f, 1.0f, linearDepth01);
+            color = Vector4(depth01, depth01, depth01, 1.0f);
         }
         return color;
     }

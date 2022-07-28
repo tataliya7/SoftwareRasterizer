@@ -186,7 +186,7 @@ namespace SR
 					
 					ImGui::Checkbox("Show Transform Manipulater", &showTransformManipulater);
 					ImGui::Checkbox("Show Grid", &showGrid);
-					
+					ImGui::Checkbox("Soft Shadow (PCF)", &renderShadow);
 					static const char* debugViewNames[] = {
 						"None",
 						"Wolrd Position",
@@ -260,6 +260,14 @@ namespace SR
 					ImGui::Separator();
 
 					ImGui::AlignTextToFramePadding();
+					ImGui::TextUnformatted("Position (used for shadow map)");
+					ImGui::NextColumn();
+					ImGui::PushItemWidth(-1);
+					ImGui::DragFloat3("##Position", &light.position.x, 0.1f);
+					ImGui::PopItemWidth();
+					ImGui::NextColumn();
+
+					ImGui::AlignTextToFramePadding();
 					ImGui::TextUnformatted("Direction");
 					ImGui::NextColumn();
 					ImGui::PushItemWidth(-1);
@@ -291,6 +299,32 @@ namespace SR
 				if (ImGui::CollapsingHeader("Model"))
 				{
 					ImGui::Separator();
+					static const char* modelNames[] = {
+						"Damaged Helmet",
+						"Cube"
+					};
+					int idx = 0;
+					if (ImGui::BeginCombo("Model Name", modelNames[modelID]))
+					{
+						for (int n = 0; n < IM_ARRAYSIZE(modelNames); n++)
+						{
+							if (ImGui::Selectable(modelNames[n], idx == n))
+							{
+								idx = n;
+								modelID = (DebugView)idx;
+								if (modelID == 0)
+								{
+									ImportGLTF2((currentDir + "/../../Assets/DamagedHelmet/glTF/DamagedHelmet.gltf").c_str(), &model);
+								}
+								else if (modelID == 1)
+								{
+									ImportGLTF2((currentDir + "/../../Assets/Cube/Cube.gltf").c_str(), &model);
+								}
+							}
+						}
+						ImGui::EndCombo();
+					}
+
 					if (ImGui::TreeNode("Transform"))
 					{
 						ImGui::Text("Transform Manipulate");
@@ -324,7 +358,7 @@ namespace SR
 						ImGui::TextUnformatted("Position");
 						ImGui::NextColumn();
 						ImGui::PushItemWidth(-1);
-						ImGui::DragFloat3("##Position", &floorTransform.position.x, 0.1f);
+						ImGui::DragFloat3("##Position", &modelTransform.position.x, 0.1f);
 						ImGui::PopItemWidth();
 						ImGui::NextColumn();
 
@@ -332,7 +366,7 @@ namespace SR
 						ImGui::TextUnformatted("Rotation");
 						ImGui::NextColumn();
 						ImGui::PushItemWidth(-1);
-						ImGui::DragFloat3("##Rotation", &floorTransform.rotation.x, 0.1f);
+						ImGui::DragFloat3("##Rotation", &modelTransform.rotation.x, 0.1f);
 						ImGui::PopItemWidth();
 						ImGui::NextColumn();
 

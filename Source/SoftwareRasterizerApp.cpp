@@ -49,32 +49,39 @@ namespace SR
         
         char dir[MAX_PATH];
         _getcwd(dir, MAX_PATH);
-        std::string currentDir(dir);
+        currentDir = dir;
         ImportGLTF2((currentDir + "/../../Assets/DamagedHelmet/glTF/DamagedHelmet.gltf").c_str(), &model);
         ImportGLTF2((currentDir + "/../../Assets/floor/floor.gltf").c_str(), &floor);
         
-        camera.euler = Vector3(0.0f, 0.0f, 0.0f);
-        camera.position = Vector3(0.0f, 0.0f, 5.0f);
+        camera.position = Vector3(0.0f, 18.0f, 31.0f);
+        camera.euler = Vector3(-36.0f, 0.0f, 0.5f);
         camera.fieldOfView = 60.0f;
-        camera.zNear = 0.03f;
-        camera.zFar = 1000.0f;
+        camera.zNear = 0.5f;
+        camera.zFar = 10000.0f;
 
         light.color = Vector3(1.0f, 1.0f, 1.0f);
-        light.direction = Vector3(1.0f, -1.0f, 1.0f);
+        //light.position = Vector3(8.3f, 8.9f, 0.0f); 
+        //light.direction = Vector3(-13.9f, -20.7f, 0.0f);
+        light.position = Vector3(29.3f, 29.9f, 0.0f);
+        light.direction = Vector3(-13.9f, -20.7f, 0.0f);
         light.intensity = 1.0f;
 
         modelTransform.position = Vector3(0.0f, 0.0f, 0.0f);
         modelTransform.rotation = Vector3(78.0f, 20.0f, 0.0f);
         modelTransform.scale = Vector3(1.0f, 1.0f, 1.0f);
 
-        floorTransform.position = Vector3(0.0f, 0.0f, 0.0f);
-        floorTransform.rotation = Vector3(0.0f, 0.0f, 0.0f);
+        floorTransform.position = Vector3(0.0f, -5.0f, 0.0f);
+        floorTransform.rotation = Vector3(90.0f, 0.0f, 0.0f);
         floorTransform.scale = Vector3(1.0f, 1.0f, 1.0f);
 
         rasterizer = new Rasterizer();
 
         sceneColor = new RenderTarget<glm::u8vec4>(1, 1);
         depthBuffer = new RenderTarget<float>(1, 1);
+
+        shadowMapSize = 1024;
+        shadowMap = new RenderTarget<float>(shadowMapSize, shadowMapSize);
+        shadowMap->Resize(shadowMapSize, shadowMapSize);
 
         VertexShader pbrVertexShader;
         pbrVertexShader.Main = PBRMainVS;
@@ -95,7 +102,7 @@ namespace SR
         pipelineState1.vertexShader = pbrVertexShader;
         pipelineState1.pixelShader = pbrPixelShader;
         pipelineState1.fillMode = FILL_MODE_SOLID;
-        pipelineState1.cullMode = CULL_MODE_NONE;
+        pipelineState1.cullMode = CULL_MODE_BACK;
         pipelineState1.frontCCW = true;
         pipelineState1.depthTestEnable = true;
         pipelineState1.depthWriteEnable = true;
@@ -106,21 +113,18 @@ namespace SR
         pipelineState2.vertexShader = { ShaderMapShaderMainVS };
         pipelineState2.pixelShader = { ShaderMapShaderMainPS };
         pipelineState2.fillMode = FILL_MODE_SOLID;
-        pipelineState2.cullMode = CULL_MODE_NONE;
+        pipelineState2.cullMode = CULL_MODE_BACK;
         pipelineState2.frontCCW = true;
         pipelineState2.depthTestEnable = true;
         pipelineState2.depthWriteEnable = true;
         pipelineState2.depthCompareOp = COMPARE_OP_LESS_OR_EQUAL;
         pipelineState2.colorBuffer = nullptr;
-        pipelineState2.depthBuffer = shadowMap;
+        pipelineState2.depthBuffer = depthBuffer;
+        pipelineState2.shadowMap = shadowMap;
 
         perFrameData.gamma = 2.2f;
         perFrameData.exposure = 1.4f;
         perFrameData.debugView = DEBUG_VIEW_NONE;
-
-        shadowMapSize = 512;
-        shadowMap = new RenderTarget<float>(shadowMapSize, shadowMapSize);
-        shadowMap->Resize(shadowMapSize, shadowMapSize);
 
         return true;
     }
@@ -166,18 +170,20 @@ namespace SR
 
     void SoftwareRasterizerApp::ShadowPass()
     {
-        shadowMap->Clear(1.0f);
+        depthBuffer->Resize(shadowMapSize, shadowMapSize);
+        depthBuffer->Clear(FLT_MAX);
+        shadowMap->Clear(FLT_MAX);
 
         SMShaderPushConstants pc;
         rasterizer->SetViewport(0.0f, 0.0f, (float)shadowMapSize, (float)shadowMapSize);
         
         pc.vertices = model.positions.data();
         pc.mvp = light.vp * modelTransform.world;
-        rasterizer->DrawPrimitives(pipelineState2, &pc, model.numVertices, model.primitives, model.numPrimitives);
+        rasterizer->DrawPrimitives(pipelineState2, &pc, model.numVertices, model.primitives, model.numPrimitives, camera.zNear, camera.zFar);
 
         pc.vertices = floor.positions.data();
         pc.mvp = light.vp * floorTransform.world;
-        rasterizer->DrawPrimitives(pipelineState2, &pc, floor.numVertices, floor.primitives, floor.numPrimitives);
+        rasterizer->DrawPrimitives(pipelineState2, &pc, floor.numVertices, floor.primitives, floor.numPrimitives, camera.zNear, camera.zFar);
     }
 
     void SoftwareRasterizerApp::Render()
@@ -198,7 +204,6 @@ namespace SR
         pushConstantBlock0.material = &model.material;
         pushConstantBlock0.lightMatrix = &light.vp;
         pushConstantBlock0.shadowMap = nullptr;
-        //pushConstantBlock0.shadowMap = shadowMap;
 
         PBRShaderPushConstants pushConstantBlock1;
         pushConstantBlock1.positions = floor.positions.data();
@@ -210,20 +215,21 @@ namespace SR
         pushConstantBlock1.material = &floor.material;
         pushConstantBlock1.lightMatrix = &light.vp;
         pushConstantBlock1.shadowMap = nullptr;
-        //pushConstantBlock1.shadowMap = shadowMap;
-
-        // Clear render target
-        sceneColor->Clear(glm::u8vec4(1, 1, 1, 1));
-        depthBuffer->Clear(1.0f);
 
         if (renderShadow)
         {
-            // ShadowPass();
+            pushConstantBlock0.shadowMap = shadowMap;
+            pushConstantBlock1.shadowMap = shadowMap;
+            ShadowPass();
         }
 
+        // Clear render target
+        sceneColor->Clear(glm::u8vec4(1, 1, 1, 1));
+        depthBuffer->Clear(FLT_MAX);
+
         rasterizer->SetViewport(0.0f, 0.0f, (float)displayWidth, (float)displayHeight);
-        rasterizer->DrawPrimitives(pipelineState0, &pushConstantBlock0, model.numVertices, model.primitives, model.numPrimitives);
-        rasterizer->DrawPrimitives(pipelineState1, &pushConstantBlock1, floor.numVertices, floor.primitives, floor.numPrimitives);
+        rasterizer->DrawPrimitives(pipelineState0, &pushConstantBlock0, model.numVertices, model.primitives, model.numPrimitives, camera.zNear, camera.zFar);
+        rasterizer->DrawPrimitives(pipelineState1, &pushConstantBlock1, floor.numVertices, floor.primitives, floor.numPrimitives, camera.zNear, camera.zFar);
 
         UpdateSceneColorTexture(displayWidth, displayHeight, sceneColor->GetDataPtr());
         

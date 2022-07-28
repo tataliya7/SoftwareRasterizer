@@ -34,9 +34,10 @@ namespace SR
         Matrix4x4 vp;
         void Update()
         {
-            Matrix4x4 view = glm::lookAt(position, Vector3f(0.0f), Vector3(0.0f, 1.0f, 0.0f));
-            Matrix4x4 projection = glm::perspective(Math::DegreesToRadians(45.0f), 1.0f, 0.1f, 256.0f);
-            vp = projection * view;
+            Matrix4x4 view = glm::lookAt(position, position + direction, Vector3(0.0f, 1.0f, 0.0f));
+            Matrix4x4 projection = glm::perspective(Math::DegreesToRadians(45.0f), 1.0f, 3.0f, 70.0f);
+            //Matrix4x4 projection = glm::ortho(0.0f, 512.0f, 0.1f, 256.0f);
+            vp = projection * view;// glm::scale(glm::mat4(1.0f), Vector3(0.01f, 0.01f, 0.01f));
         }
     };
 

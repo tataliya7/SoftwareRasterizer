@@ -2,6 +2,7 @@
 
 #include "Shaders/ShaderCommon.h"
 #include "Shader.h"
+#include "Texture.h"
 
 namespace SR
 {
@@ -16,7 +17,8 @@ namespace SR
         BufferAddres material;
         Matrix4x4* worldMatrix;
         Matrix4x4* lightMatrix;
-        Texture* shadowMap;
+        uint32 shadowType;
+        RenderTarget<float>* shadowMap;
     };
 
     extern void PBRMainVS(uint32 SV_VertexID, ShaderPayload& output, const void* pushConstants);

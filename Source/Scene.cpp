@@ -179,6 +179,11 @@ namespace SR
 					material.baseColorMap = (std::shared_ptr<Texture>)new Texture();
 					LoadTextureFromFile(absolutePath.c_str(), material.baseColorMap.get());
 				}
+				else
+				{
+					material.baseColorMap = nullptr;
+				}
+
 				result = aiMaterial->GetTexture(aiTextureType_NORMALS, 0, &aiTexPath);
 				if (result == aiReturn_SUCCESS)
 				{
@@ -186,6 +191,11 @@ namespace SR
 					material.normalMap = (std::shared_ptr<Texture>)new Texture();
 					LoadTextureFromFile(absolutePath.c_str(), material.normalMap.get());
 				}
+				else
+				{
+					material.normalMap = nullptr;
+				}
+
 				result = aiMaterial->GetTexture(aiTextureType_UNKNOWN, 0, &aiTexPath);
 				if (result == aiReturn_SUCCESS)
 				{
@@ -193,6 +203,10 @@ namespace SR
 					std::string absolutePath = dir + '/' + aiTexPath.C_Str();
 					material.metallicRoughnessMap = (std::shared_ptr<Texture>)new Texture();
 					LoadTextureFromFile(absolutePath.c_str(), material.metallicRoughnessMap.get());
+				}
+				else
+				{
+					material.metallicRoughnessMap = nullptr;
 				}
 			}
 		}

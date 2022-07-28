@@ -19,7 +19,7 @@ namespace SR
 
     void* GetSceneColorTextureID()
     {
-        return (ImTextureID)sceneColorID;
+        return (ImTextureID)(uint64)sceneColorID;
     }
 
     void UpdateSceneColorTexture(uint32 width, uint32 height, void* data)

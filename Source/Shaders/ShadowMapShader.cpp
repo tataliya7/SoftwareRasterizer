@@ -10,11 +10,11 @@ namespace SR
 		const SMShaderPushConstants& pc = *(SMShaderPushConstants*)pushConstants;
 
 		Vector4 localPosition = Vector4(((Vector3*)pc.vertices)[SV_VertexID], 1.0f);
-		output.SV_Target = pc.mvp * localPosition;
+		output.clipPosition = pc.mvp * localPosition;
 	}
 
 	Vector4 ShaderMapShaderMainPS(const ShaderPayload& input, const void* pushConstants)
 	{
-		return Vector4(0);
+		return Vector4(1.0f);
 	}
 }

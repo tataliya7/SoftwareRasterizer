@@ -6,10 +6,41 @@
 
 namespace SR
 {
-    FORCEINLINE float PixelCoverage(const Vector2& a, const Vector2& b, const Vector2& c, bool ccw)
+    bool ClipSpacaeCulling(const Vector4& a, const Vector4& b, const Vector4& c, float zNear, float zFar)
     {
-        const float x = (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
-        return ccw ? x : -x;
+        if (a.w < zNear && b.w < zNear && c.w < zNear)
+        {
+            return false;
+        }
+        if (a.w > zFar && b.w > zFar && c.w > zFar)
+        {
+            return false;
+        }
+        if (a.x > a.w && b.x > b.w && c.x > c.w)
+        {
+            return false;
+        }
+        if (a.x < -a.w && b.x < -b.w && c.x < -c.w)
+        {
+            return false;
+        }
+        if (a.y > a.w && b.y > b.w && c.y > c.w)
+        {
+            return false;
+        }
+        if (a.y < -a.w && b.y < -b.w && c.y < -c.w)
+        {
+            return false;
+        }
+        if (a.z > a.w && b.z > b.w && c.z > c.w)
+        {
+            return false;
+        }
+        if (a.z < -a.w && b.z < -b.w && c.z < -c.w)
+        {
+            return false;
+        }
+        return true;
     }
 
     struct BarycentricCoordinates
@@ -17,7 +48,7 @@ namespace SR
         float alpha;
         float beta;
         float gamma;
-        bool IsInside() const
+        bool IsInsideTriangle() const
         {
             return alpha >= 0.0f && beta >= 0.0f && gamma >= 0.0f;
         }
@@ -50,44 +81,109 @@ namespace SR
     {
         return (bary.alpha * a + bary.beta * b + bary.gamma * c) * weight;
     }
-    
-    struct LaunchVertexShaderExecutionJobData
+
+    void PerspectiveDivision(ShaderPayload* payload)
+    {
+        const float invW = 1.0f / payload->clipPosition.w;
+        payload->invW = invW;
+        payload->ndcPosition = Vector3(payload->clipPosition) * invW;
+        // Perspective correction: the world space properties should be multipy by 1/w before rasterization
+        payload->worldPosition *= invW;
+        payload->worldNormal *= invW;
+        payload->worldTangent *= invW;
+        payload->texCoord *= invW;
+    }
+
+    struct VertexShaderJobData
     {
         VertexShader shader;
         uint32 vertexID;
         ShaderPayload* payload;
         const void* pushConstants;
-        Matrix4x4 viewportTransform;
     };
 
-    static void LaunchVertexShaderExecution(LaunchVertexShaderExecutionJobData* data)
+    static void LaunchVertexShaderExecution(VertexShaderJobData* data)
     {
         data->shader.Main(data->vertexID, *data->payload, data->pushConstants);
-
-        Vector4& SV_Target = data->payload->SV_Target;
-
         // Perspective division
-        const float invW = 1.0f / SV_Target.w;
-        data->payload->invW = invW;
-        SV_Target *= invW; // NDC space
+        PerspectiveDivision(data->payload);
 
-        // Perspective correction: the world space properties should be multipy by 1/w before rasterization
-        data->payload->clipPosition *= invW;
-        data->payload->worldPosition *= invW;
-        data->payload->worldNormal *= invW;
-        data->payload->worldTangent *= invW;
-        data->payload->texCoord *= invW;
+    }
 
-        auto& sp = data->payload->screenPosition;
+    struct PixelShaderJobData
+    {
+        BarycentricCoordinates barycentric;
+        ShaderPayload* payload[3];
+        Vector3 screenPos[3];
+        int x, y;
+        float zNear, zFar;
+        const GraphicsPipelineState* pipelineState;
+        const void* pushConstants;
+    };
 
-        // Screen-mapping
+    static void LauchPixelShaderExecution(PixelShaderJobData* data)
+    {
+        BarycentricCoordinates& barycentric = data->barycentric;
+        ShaderPayload payload;
+
+        Vector3 screenPos[3] = { data->screenPos[0], data->screenPos[1], data->screenPos[2] };
+
+        // Perspective-Correct Interpolation
+        payload.invW = BarycentricLerp(data->payload[0]->invW, data->payload[1]->invW, data->payload[2]->invW, barycentric, 1.0f);
+        const float w = 1.0f / payload.invW;
+
+        Vector3 bc_clip = Vector3(barycentric.alpha * data->payload[0]->invW, barycentric.beta * data->payload[1]->invW, barycentric.gamma * data->payload[2]->invW);
+        bc_clip = bc_clip / (bc_clip.x + bc_clip.y + bc_clip.z);
+        const float depth = glm::dot(Vector3(screenPos[0].z, screenPos[1].z, screenPos[2].z), bc_clip);
+        //const float depth = glm::dot(Vector3(data->payload[0]->clipPosition.z, data->payload[1]->clipPosition.z, data->payload[2]->clipPosition.z), bc_clip);
+        //const float depth = BarycentricLerp(data->payload[0]->clipPosition.z * data->payload[0]->invW, data->payload[1]->clipPosition.z * data->payload[1]->invW, data->payload[2]->clipPosition.z * data->payload[2]->invW, barycentric, 1.0f);
+        
+        // Interpolate vertex attributes
+        payload.clipPosition = BarycentricLerp(data->payload[0]->clipPosition, data->payload[1]->clipPosition, data->payload[2]->clipPosition, barycentric, 1.0f);
+        payload.worldPosition = BarycentricLerp(data->payload[0]->worldPosition, data->payload[1]->worldPosition, data->payload[2]->worldPosition, barycentric, w);
+        payload.worldNormal = BarycentricLerp(data->payload[0]->worldNormal, data->payload[1]->worldNormal, data->payload[2]->worldNormal, barycentric, w);
+        payload.worldTangent = BarycentricLerp(data->payload[0]->worldTangent, data->payload[1]->worldTangent, data->payload[2]->worldTangent, barycentric, w);
+        payload.texCoord = BarycentricLerp(data->payload[0]->texCoord, data->payload[1]->texCoord, data->payload[2]->texCoord, barycentric, w);
+
+        Vector4 color = data->pipelineState->pixelShader.Main(payload, data->pushConstants);
+
+        // Depth testing
+        if (data->pipelineState->depthTestEnable)
         {
-            // Viewport transform
-            sp = data->viewportTransform * SV_Target;
+            float depthBufferValue = data->pipelineState->depthBuffer->Load(data->x, data->y);
+            if ((data->pipelineState->depthCompareOp == COMPARE_OP_LESS_OR_EQUAL) && (depth > depthBufferValue))
+            {
+                return;
+            }
+            if ((data->pipelineState->depthCompareOp == COMPARE_OP_GREATER) && (depth <= depthBufferValue))
+            {
+                return;
+            }
+        }
+
+        if (data->pipelineState->shadowMap)
+        {
+            //float d = BarycentricLerp(data->payload[0]->clipPosition.z, data->payload[1]->clipPosition.z, data->payload[2]->clipPosition.z, barycentric, 1.0f);
+            float d = depth;
+            //d = data->zNear * data->zFar / (data->zFar + d * (data->zNear - data->zFar));
+            data->pipelineState->shadowMap->Store(data->x, data->y, d);
+            return;
+        }
+
+        if (data->pipelineState->colorBuffer)
+        {
+            color = glm::clamp(color, 0.0f, 1.0f);
+            glm::u8vec4 pixel = { (uint8)(color.x * 255.0f), (uint8)(color.y * 255.0f), (uint8)(color.z * 255.0f), (uint8)(color.w * 255.0f) };
+            data->pipelineState->colorBuffer->Store(data->x, data->y, pixel);
+        }
+        // Depth writing
+        if (data->pipelineState->depthWriteEnable)
+        {
+            data->pipelineState->depthBuffer->Store(data->x, data->y, depth);
         }
     }
-    
-    struct ExecuteTriangleRasterizationJobData
+
+    struct TriangleRasterizationJobData
     {
         PixelShader shader;
         uint32 primitiveID;
@@ -97,24 +193,38 @@ namespace SR
         const void* pushConstants;
         const GraphicsPipelineState* pipelineState;
         Viewport viewport;
-        Matrix4x4 viewportTransform;
+        float zNear;
+        float zFar;
     };
 
-    static void ExecuteTriangleRasterization(ExecuteTriangleRasterizationJobData* data)
+    static void ExecuteTriangleRasterization(TriangleRasterizationJobData* data)
     {
         ShaderPayload* payload0 = data->payload0;
         ShaderPayload* payload1 = data->payload1;
         ShaderPayload* payload2 = data->payload2;
 
-        Vector3& sp0 = payload0->screenPosition;
-        Vector3& sp1 = payload1->screenPosition;
-        Vector3& sp2 = payload2->screenPosition;
+        Vector4 clipPosition[3] = { data->payload0->clipPosition, data->payload1->clipPosition, data->payload2->clipPosition };
+        Vector3 ndcPos[3] = { data->payload0->ndcPosition, data->payload1->ndcPosition, data->payload2->ndcPosition };
+
+        if (!ClipSpacaeCulling(clipPosition[0], clipPosition[1], clipPosition[2], data->zNear, data->zFar))
+        {
+            return;
+        }
+
+        // Viewport transform
+        Vector3 screenPos[3];
+        for (uint32 i = 0; i < 3; i++)
+        {
+            screenPos[i].x = (data->viewport.width * 0.5f) * (1.0f + ndcPos[i].x) + data->viewport.x;
+            screenPos[i].y = (data->viewport.height * 0.5f) * (1.0f + ndcPos[i].y) + data->viewport.y;
+            screenPos[i].z = (data->viewport.maxDepth - data->viewport.minDepth) * ndcPos[i].z + data->viewport.minDepth;
+        }
 
         // Back-face culling in screen space
         if (data->pipelineState->cullMode != CULL_MODE_NONE)
         {
-            auto e1 = Vector2(sp2) - Vector2(sp0);
-            auto e2 = Vector2(sp1) - Vector2(sp0);
+            auto e1 = Vector2(screenPos[2]) - Vector2(screenPos[0]);
+            auto e2 = Vector2(screenPos[1]) - Vector2(screenPos[0]);
             float orient = e1.x * e2.y - e1.y * e2.x;
             bool frontFacing = data->pipelineState->frontCCW ? orient > 0.0f : orient < 0.0f;
             if ((data->pipelineState->cullMode == CULL_MODE_BACK && !frontFacing) ||
@@ -125,88 +235,50 @@ namespace SR
             }
         }
         
-        float xmin = std::floor(std::min(sp0.x, std::min(sp1.x, sp2.x)));
-        float xmax = std::ceil(std::max(sp0.x, std::max(sp1.x, sp2.x)));
-        float ymin = std::floor(std::min(sp0.y, std::min(sp1.y, sp2.y)));
-        float ymax = std::ceil(std::max(sp0.y, std::max(sp1.y, sp2.y)));
-
-        uint32 minx = std::max<uint32>(0, (int)xmin);
-        uint32 maxx = std::min<uint32>((int)data->viewport.width - 1, (int)xmax);
-        uint32 miny = std::max<uint32>(0, (int)ymin);
-        uint32 maxy = std::min<uint32>((int)data->viewport.height - 1, (int)ymax);
-
-        /*int minx = std::max(0, (int)std::floor(std::min(sp0.x, std::min(sp1.x, sp2.x))));
-        int maxx = std::max(0, (int)std::floor(std::min(sp0.y, std::min(sp1.y, sp2.y))));
-        int miny = std::min((int)data->viewport.width - 1, (int)std::ceil(std::max(sp0.x, std::max(sp1.x, sp2.x))));
-        int maxy = std::min((int)data->viewport.height - 1, (int)std::ceil(std::max(sp0.y, std::max(sp1.y, sp2.y))));*/
-
-        for (uint32 x = minx; x < maxx; x++)
+        int minx = std::clamp(std::min((int)screenPos[0].x, std::min((int)screenPos[1].x, (int)screenPos[2].x)), (int)data->viewport.x, (int)data->viewport.width  - 1);
+        int maxx = std::clamp(std::max((int)screenPos[0].x, std::max((int)screenPos[1].x, (int)screenPos[2].x)), (int)data->viewport.x, (int)data->viewport.width  - 1);
+        int miny = std::clamp(std::min((int)screenPos[0].y, std::min((int)screenPos[1].y, (int)screenPos[2].y)), (int)data->viewport.y, (int)data->viewport.height - 1);
+        int maxy = std::clamp(std::max((int)screenPos[0].y, std::max((int)screenPos[1].y, (int)screenPos[2].y)), (int)data->viewport.y, (int)data->viewport.height - 1);
+        
+        std::vector<JobDecl> jobDecls;
+        std::vector<PixelShaderJobData> pixelShaderJobData;
+        for (int x = minx; x <= maxx; x++)
         {
-            for (uint32 y = miny; y < maxy; y++)
+            for (int y = miny; y <= maxy; y++)
             {
-                ASSERT(x < data->pipelineState->colorBuffer->GetWidth() && y < data->pipelineState->colorBuffer->GetHeight());
-
-                Vector2 pixelCoord = { x + 0.5f, y + 0.5f };
-
-                BarycentricCoordinates barycentric = CalculateBarycentric2D(pixelCoord.x, pixelCoord.y, sp0, sp1, sp2);
-                if (!barycentric.IsInside())
+                BarycentricCoordinates barycentric = CalculateBarycentric2D(x, y, screenPos[0], screenPos[1], screenPos[2]);
+                if (!barycentric.IsInsideTriangle())
                 {
                     continue;
                 }
-
-                ShaderPayload payload;
-
-                // Perspective-Correct Interpolation
-                payload.invW = BarycentricLerp(payload0->invW, payload1->invW, payload2->invW, barycentric, 1.0f);
-                const float w = 1.0f / payload.invW;
-
-                const float depth = BarycentricLerp(sp0.z * payload0->invW, sp1.z * payload1->invW, sp2.z * payload2->invW, barycentric, w);
-                payload.screenPosition = Vector3(pixelCoord.x, pixelCoord.y, depth);
-
-                // Interpolate vertex attributes
-                payload.clipPosition = BarycentricLerp(payload0->clipPosition, payload1->clipPosition, payload2->clipPosition, barycentric, w);
-                payload.worldPosition = BarycentricLerp(payload0->worldPosition, payload1->worldPosition, payload2->worldPosition, barycentric, w);
-                payload.worldNormal = BarycentricLerp(payload0->worldNormal, payload1->worldNormal, payload2->worldNormal, barycentric, w);
-                payload.worldTangent = BarycentricLerp(payload0->worldTangent, payload1->worldTangent, payload2->worldTangent, barycentric, w);
-                payload.texCoord = BarycentricLerp(payload0->texCoord, payload1->texCoord, payload2->texCoord, barycentric, w);
-
-                Vector4 color = data->shader.Main(payload, data->pushConstants);
-
-                // Depth testing
-                if (data->pipelineState->depthTestEnable)
-                {
-                    float depthBufferValue = data->pipelineState->depthBuffer->Load(x, y);
-                    if ((data->pipelineState->depthCompareOp == COMPARE_OP_LESS_OR_EQUAL) && (depth > depthBufferValue))
-                    {
-                        continue;
-                    }
-                    if ((data->pipelineState->depthCompareOp == COMPARE_OP_GREATER) && (depth <= depthBufferValue))
-                    {
-                        continue;
-                    }
-                }
-
-                color = glm::clamp(color, 0.0f, 1.0f);
-                glm::u8vec4 pixel = { (uint8)(color.x * 255.0f), (uint8)(color.y * 255.0f), (uint8)(color.z * 255.0f), (uint8)(color.w * 255.0f) };
-                data->pipelineState->colorBuffer->Store(x, y, pixel);
-
-                // Depth writing
-                if (data->pipelineState->depthWriteEnable)
-                {
-                    data->pipelineState->depthBuffer->Store(x, y, depth);
-                }
+                pixelShaderJobData.push_back({
+                    barycentric,
+                    { payload0, payload1, payload2 },
+                    { screenPos[0], screenPos[1], screenPos[2] },
+                    x, y,
+                    data->zNear, data->zFar,
+                    data->pipelineState,
+                    data->pushConstants
+                });
+                jobDecls.push_back({
+                    JOB_SYSTEM_JOB_ENTRY_POINT(LauchPixelShaderExecution),
+                    &pixelShaderJobData.back()
+                });
+                LauchPixelShaderExecution(&pixelShaderJobData.back());
             }
         }
+        //JobSystemAtomicCounterHandle counter = JobSystem::RunJobs(jobDecls.data(), (uint32)jobDecls.size());
+        //JobSystem::WaitForCounterAndFree(counter, 0);
     }
 
-    void Rasterizer::DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives)
+    void Rasterizer::DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives, float zNear, float zFar)
     {
         payloads.resize(numVertices);
 
         std::vector<JobDecl> jobDecls;
 
         // Launch vertex shaders
-        std::vector<LaunchVertexShaderExecutionJobData> vertexShaderExecuteJobData(numVertices);
+        std::vector<VertexShaderJobData> vertexShaderExecuteJobData(numVertices);
         jobDecls.resize(numVertices);
         for (uint32 vertexID = 0; vertexID < numVertices; vertexID++) 
         {
@@ -214,8 +286,7 @@ namespace SR
                 pipelineState.vertexShader,
                 vertexID, 
                 &payloads[vertexID], 
-                pushConstants,
-                viewportTransform,
+                pushConstants
             };
             jobDecls[vertexID] = { 
                 JOB_SYSTEM_JOB_ENTRY_POINT(LaunchVertexShaderExecution), 
@@ -226,7 +297,7 @@ namespace SR
         JobSystem::WaitForCounterAndFreeWithoutFiber(vertexShaderExecuteJobCounter);
 
         // Rasterization stage
-        std::vector<ExecuteTriangleRasterizationJobData> triangleRasterizeJobData(numPrimitives);
+        std::vector<TriangleRasterizationJobData> triangleRasterizeJobData(numPrimitives);
         jobDecls.resize(numPrimitives);
         for (uint32 primitiveID = 0; primitiveID < numPrimitives; primitiveID++)
         {
@@ -239,16 +310,17 @@ namespace SR
                 pushConstants,
                 &pipelineState,
                 viewport,
-                viewportTransform
+                zNear,
+                zFar
             };
             jobDecls[primitiveID] = {
                 JOB_SYSTEM_JOB_ENTRY_POINT(ExecuteTriangleRasterization),
                 &triangleRasterizeJobData[primitiveID]
             };
-            ExecuteTriangleRasterization(&triangleRasterizeJobData[primitiveID]);
+            //ExecuteTriangleRasterization(&triangleRasterizeJobData[primitiveID]);
         }
-        //JobSystemAtomicCounterHandle triangleRasterizeJobCounter = JobSystem::RunJobs(jobDecls.data(), numPrimitives);
-        //JobSystem::WaitForCounterAndFreeWithoutFiber(triangleRasterizeJobCounter);
+        JobSystemAtomicCounterHandle triangleRasterizeJobCounter = JobSystem::RunJobs(jobDecls.data(), numPrimitives);
+        JobSystem::WaitForCounterAndFreeWithoutFiber(triangleRasterizeJobCounter);
     }
 
     void Rasterizer::SetViewport(float x, float y, float width, float height)
@@ -257,12 +329,7 @@ namespace SR
         viewport.y = y;
         viewport.width = width;
         viewport.height = height;
-
-        float hwidth = width * 0.5f;
-        float hheight = height * 0.5f;
-        viewportTransform[0][0] = hwidth; viewportTransform[0][1] = 0.0f;     viewportTransform[0][2] = 0.0f; viewportTransform[0][3] = 0.0f;
-        viewportTransform[1][0] = 0.0f;	  viewportTransform[1][1] = -hheight; viewportTransform[1][2] = 0.0f; viewportTransform[1][3] = 0.0f;
-        viewportTransform[2][0] = 0.0f;   viewportTransform[2][1] = 0.0f;     viewportTransform[2][2] = 1.0f; viewportTransform[2][3] = 0.0f;
-        viewportTransform[3][0] = hwidth; viewportTransform[3][1] = hheight;  viewportTransform[3][2] = 0.0f; viewportTransform[3][3] = 0.0f;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
     }
 }

@@ -3,6 +3,7 @@
 #include "SRCommon.h"
 #include "SRMath.h"
 #include "Shader.h"
+#include "Texture.h"
 
 namespace SR
 {
@@ -26,57 +27,6 @@ namespace SR
         COMPARE_OP_GREATER       = 1,
     };
 
-    template <typename T>
-    class RenderTarget
-    {
-    public:
-        RenderTarget(uint32 w, uint32 h)
-            : width(w)
-            , height(h)
-        {
-
-        }
-        uint32 GetWidth() const
-        {
-            return width;
-        }
-        uint32 GetHeight() const
-        {
-            return height;
-        }
-        void Resize(uint32 w, uint32 h)
-        {
-            width = w;
-            height = h;
-            buffer.resize(width * height);
-        }
-        void Clear(const T& clearValue)
-        {
-            for (uint32 i = 0; i < width * height; i++)
-            {
-                buffer[i] = clearValue;
-            }
-        }
-        const T& Load(uint32 x, uint32 y) const
-        {
-            uint32 index = y * width + x;
-            return buffer[index];
-        }
-        void Store(uint32 x, uint32 y, const T& value)
-        {
-            uint32 index = y * width + x;
-            buffer[index] = value;
-        }
-        void* GetDataPtr()
-        {
-            return buffer.data();
-        }
-    private:
-        uint32 width;
-        uint32 height; 
-        std::vector<T> buffer;
-    };
-
     struct GraphicsPipelineState
     {
         // Shaders
@@ -92,6 +42,7 @@ namespace SR
         CompareOp depthCompareOp;
         RenderTarget<float>* depthBuffer;
         RenderTarget<glm::u8vec4>* colorBuffer;
+        RenderTarget<float>* shadowMap = nullptr;
     };
 
     //struct RasterizerStatatics
@@ -105,6 +56,8 @@ namespace SR
         float y;
         float width;
         float height;
+        float minDepth;
+        float maxDepth;
     };
 
     class Rasterizer
@@ -112,9 +65,8 @@ namespace SR
     public:
         std::vector<ShaderPayload> payloads;
         void SetViewport(float x, float y, float width, float height); 
-        void DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives);
+        void DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives, float zNear, float zFar);
     private:
         Viewport viewport;
-        Matrix4x4 viewportTransform; // From NDC space to screen space
     };
 }
