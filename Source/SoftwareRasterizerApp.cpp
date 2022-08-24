@@ -55,9 +55,11 @@ namespace SR
         
         camera.position = Vector3(0.0f, 18.0f, 31.0f);
         camera.euler = Vector3(-36.0f, 0.0f, 0.5f);
+        //camera.position = Vector3(0.0f, 0.0f, 0.0f);
+        //camera.euler = Vector3(0.0f, 0.0f, 0.0f);
         camera.fieldOfView = 60.0f;
         camera.zNear = 0.1f;
-        camera.zFar = 100.0f;
+        camera.zFar = 256.0f;
 
         light.color = Vector3(1.0f, 1.0f, 1.0f);
         //light.position = Vector3(8.3f, 8.9f, 0.0f); 

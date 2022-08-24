@@ -113,7 +113,7 @@ namespace SR
     struct PixelShaderJobData
     {
         BarycentricCoordinates barycentric;
-        ShaderPayload* payload[3];
+        const ShaderPayload* payload[3];
         Vector3 screenPos[3];
         int x, y;
         float zNear, zFar;
@@ -239,9 +239,8 @@ namespace SR
         int maxx = std::clamp(std::max((int)screenPos[0].x, std::max((int)screenPos[1].x, (int)screenPos[2].x)), (int)data->viewport.x, (int)data->viewport.width  - 1);
         int miny = std::clamp(std::min((int)screenPos[0].y, std::min((int)screenPos[1].y, (int)screenPos[2].y)), (int)data->viewport.y, (int)data->viewport.height - 1);
         int maxy = std::clamp(std::max((int)screenPos[0].y, std::max((int)screenPos[1].y, (int)screenPos[2].y)), (int)data->viewport.y, (int)data->viewport.height - 1);
-        
-        std::vector<JobDecl> jobDecls;
-        std::vector<PixelShaderJobData> pixelShaderJobData;
+
+#pragma omp parallel for
         for (int x = minx; x <= maxx; x++)
         {
             for (int y = miny; y <= maxy; y++)
@@ -251,7 +250,8 @@ namespace SR
                 {
                     continue;
                 }
-                pixelShaderJobData.push_back({
+
+                PixelShaderJobData pixelShaderJobData = {
                     barycentric,
                     { payload0, payload1, payload2 },
                     { screenPos[0], screenPos[1], screenPos[2] },
@@ -259,21 +259,10 @@ namespace SR
                     data->zNear, data->zFar,
                     data->pipelineState,
                     data->pushConstants
-                });
-                jobDecls.push_back({
-                    JOB_SYSTEM_JOB_ENTRY_POINT(LauchPixelShaderExecution),
-                    &pixelShaderJobData.back()
-                });
-                LauchPixelShaderExecution(&pixelShaderJobData.back());
+                };
+                LauchPixelShaderExecution(&pixelShaderJobData);
             }
         }
-
-        // TODO: use OpenMP instead
-        /*if (!jobDecls.empty())
-        {
-            JobSystemAtomicCounterHandle counter = JobSystem::RunJobs(jobDecls.data(), (uint32)jobDecls.size());
-            JobSystem::WaitForCounterAndFreeWithoutFiber(counter);
-        }*/
     }
 
     void Rasterizer::DrawPrimitives(const GraphicsPipelineState& pipelineState, const void* pushConstants, uint32 numVertices, const std::vector<Primitive>& primitives, uint32 numPrimitives, float zNear, float zFar)

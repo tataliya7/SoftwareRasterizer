@@ -13,7 +13,7 @@ project "SoftwareRasterizer"
         "**.cpp",
         "**.inl",
     }
-
+    
     links {
         "imgui",
         "ImGuizmo",
@@ -52,4 +52,6 @@ project "SoftwareRasterizer"
 
     filter { "platforms:Win64", "configurations:Debug" }
         linkoptions {"/NODEFAULTLIB:LIBCMT"}
+
+    
         

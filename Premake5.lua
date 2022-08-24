@@ -34,7 +34,8 @@ filter "configurations:Release"
 filter "system:windows"
     platforms "Win64"
     systemversion "latest"
-
+    openmp "On"
+    
 filter "platforms:Win64"
     defines { 
         "SR_PLATFORM_WINDOWS",
